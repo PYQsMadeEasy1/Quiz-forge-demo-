@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz Forge — Turn anything into a quiz</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth.js/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Source+Sans+3:wght@400;500;600;700&display=swap');
+
+  :root{
+    --paper:#f6f2ea;
+    --ink:#2b2620;
+    --ink-soft:#6b6255;
+    --line:#ddd4c2;
+    --moss:#4a6741;
+    --moss-deep:#26391f;
+    --moss-pale:#e8efe3;
+    --clay:#b5502f;
+    --clay-pale:#f6e3da;
+    --gold:#a3791f;
+    --gold-pale:#f5ecd6;
+    --card:#fffdf8;
+    --error:#a33d2f;
+    --error-pale:#f7e2de;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Source Sans 3',sans-serif;
+    line-height:1.5;
+  }
+  h1,h2,h3{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    margin:0;
+    color:var(--ink);
+  }
+  .wrap{
+    max-width:920px;
+    margin:0 auto;
+    padding:2.5rem 1.5rem 5rem;
+  }
+  header{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    margin-bottom:2.25rem;
+    border-bottom:1px solid var(--line);
+    padding-bottom:1.25rem;
+  }
+  header h1{font-size:1.7rem; letter-spacing:-0.01em;}
+  header h1 span{color:var(--moss);}
+  header p{margin:0.2rem 0 0; color:var(--ink-soft); font-size:0.92rem;}
+
+  .tabs{display:flex; gap:0.4rem; flex-wrap:wrap; margin-bottom:1.25rem;}
+  .tab{
+    padding:0.5rem 0.95rem; border:1px solid var(--line); background:var(--card);
+    border-radius:7px; cursor:pointer; font-size:0.9rem; color:var(--ink-soft);
+    transition:border-color .15s, color .15s;
+  }
+  .tab:hover{border-color:var(--moss);}
+  .tab.active{background:var(--moss); border-color:var(--moss); color:#fff;}
+
+  .panel{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:1.5rem; margin-bottom:1.25rem;}
+  .field{margin-bottom:1rem;}
+  .field:last-child{margin-bottom:0;}
+  label{display:block; font-size:0.82rem; color:var(--ink-soft); margin-bottom:0.35rem; font-weight:500;}
+  textarea, input[type=text], input[type=url], input[type=number], select{
+    width:100%; border:1px solid var(--line); border-radius:7px; padding:0.65rem 0.8rem;
+    font-family:inherit; font-size:0.95rem; background:#fff; color:var(--ink);
+  }
+  textarea{min-height:140px; resize:vertical;}
+  textarea:focus, input:focus, select:focus{outline:2px solid var(--moss); outline-offset:1px;}
+
+  .row{display:flex; gap:1rem; flex-wrap:wrap;}
+  .row > .field{flex:1; min-width:150px;}
+
+  .dropzone{
+    border:1.5px dashed var(--line); border-radius:8px; padding:2rem 1rem; text-align:center;
+    color:var(--ink-soft); cursor:pointer; transition:border-color .15s, background .15s; font-size:0.9rem;
+  }
+  .dropzone:hover, .dropzone.drag{border-color:var(--moss); background:#fbfaf5;}
+  .dropzone strong{color:var(--ink);}
+  .filename{margin-top:0.6rem; font-size:0.85rem; color:var(--moss-deep); font-weight:600;}
+
+  button.primary{
+    background:var(--moss); color:#fff; border:none; padding:0.75rem 1.4rem; border-radius:7px;
+    font-size:0.95rem; font-weight:600; cursor:pointer; font-family:inherit; transition:background .15s;
+  }
+  button.primary:hover{background:var(--moss-deep);}
+  button.primary:disabled{background:#a6a196; cursor:not-allowed;}
+  button.ghost{
+    background:transparent; border:1px solid var(--line); color:var(--ink); padding:0.6rem 1.1rem;
+    border-radius:7px; font-size:0.88rem; cursor:pointer; font-family:inherit;
+  }
+  button.ghost:hover{border-color:var(--moss); color:var(--moss-deep);}
+  button.ghost:disabled{opacity:0.5; cursor:not-allowed;}
+  .choice-btn{
+    display:flex; flex-direction:column; align-items:center; gap:0.15rem;
+    min-width:190px; padding:1rem 1.2rem; text-align:center; line-height:1.3;
+  }
+  .choice-btn .sub{font-weight:400; font-size:0.78rem; opacity:0.85;}
+
+  .status{margin-top:0.9rem; font-size:0.88rem; color:var(--ink-soft); display:flex; align-items:center; gap:0.5rem;}
+  .status.err{color:var(--error);}
+  .spinner{width:14px; height:14px; border:2px solid var(--line); border-top-color:var(--moss); border-radius:50%; animation:spin .7s linear infinite; flex-shrink:0;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* question type builder */
+  .qtype-table{width:100%; border-collapse:collapse; margin-top:0.4rem;}
+  .qtype-table th{
+    text-align:left; font-size:0.78rem; color:var(--ink-soft); font-weight:600;
+    padding:0.35rem 0.5rem; border-bottom:1px solid var(--line);
+  }
+  .qtype-table td{padding:0.4rem 0.5rem; border-bottom:1px solid #ece5d5; font-size:0.9rem;}
+  .qtype-table input[type=number]{width:70px; padding:0.4rem 0.5rem;}
+  .qtype-table .desc{color:var(--ink-soft); font-size:0.78rem;}
+  .qtype-total{
+    margin-top:0.7rem; font-size:0.88rem; font-weight:600; display:flex; justify-content:space-between;
+    padding-top:0.6rem; border-top:1px solid var(--line);
+  }
+  .qtype-total.over{color:var(--error);}
+
+  /* quiz results */
+  .quiz-head{display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; margin-bottom:1.25rem; flex-wrap:wrap;}
+  .quiz-head h2{font-size:1.4rem;}
+  .quiz-head .meta{color:var(--ink-soft); font-size:0.85rem; margin-top:0.2rem;}
+  .actions{display:flex; gap:0.5rem; flex-wrap:wrap;}
+
+  .qcard{border:1px solid var(--line); border-radius:9px; padding:1.1rem 1.25rem; margin-bottom:0.9rem; background:var(--card);}
+  .qcard .qnum{font-family:'Fraunces',serif; font-weight:600; color:var(--moss-deep); font-size:0.95rem; margin-bottom:0.15rem; display:flex; align-items:center; gap:0.5rem;}
+  .qtype-badge{
+    font-size:0.68rem; font-weight:600; padding:0.15rem 0.5rem; border-radius:20px;
+    background:var(--gold-pale); color:var(--gold); text-transform:none;
+  }
+  .qcard .qtext{font-size:1rem; margin:0.5rem 0 0.7rem; font-weight:500; white-space:pre-line;}
+  .opt{display:flex; align-items:flex-start; gap:0.6rem; padding:0.5rem 0.7rem; border-radius:6px; margin-bottom:0.35rem; font-size:0.92rem; border:1px solid transparent; cursor:default;}
+  .opt.correct{background:var(--moss-pale); border-color:#c3d6b8; color:var(--moss-deep); font-weight:600;}
+  .opt .letter{flex-shrink:0; width:20px; height:20px; border-radius:50%; border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:0.72rem; color:var(--ink-soft);}
+  .opt.correct .letter{background:var(--moss); border-color:var(--moss); color:#fff;}
+  .explain{margin-top:0.6rem; font-size:0.85rem; color:var(--ink-soft); border-top:1px dashed var(--line); padding-top:0.6rem;}
+  .match-table{width:100%; border-collapse:collapse; margin-bottom:0.6rem; font-size:0.9rem;}
+  .match-table th{text-align:left; background:var(--moss-pale); padding:0.4rem 0.6rem; font-size:0.8rem; color:var(--moss-deep);}
+  .match-table td{padding:0.4rem 0.6rem; border-bottom:1px solid #ece5d5;}
+  .empty-state{text-align:center; padding:3rem 1rem; color:var(--ink-soft);}
+  .empty-state .glyph{font-family:'Fraunces',serif; font-size:2.5rem; color:var(--line); margin-bottom:0.5rem;}
+  .hidden{display:none !important;}
+  .lang-toggle{display:flex; gap:0.4rem;}
+  .lang-toggle label{display:flex; align-items:center; gap:0.35rem; font-size:0.85rem; color:var(--ink); margin:0; font-weight:400; cursor:pointer;}
+
+  /* practice mode */
+  .practice-bar{
+    position:sticky; top:0; background:var(--paper); z-index:10; padding:0.8rem 0 1rem;
+    display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); margin-bottom:1.25rem;
+  }
+  .progress-track{flex:1; height:6px; background:var(--line); border-radius:4px; margin:0 1rem; overflow:hidden;}
+  .progress-fill{height:100%; background:var(--moss); transition:width .2s;}
+  .practice-q{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:1.5rem; margin-bottom:1.25rem;}
+  .practice-opt{
+    display:flex; align-items:flex-start; gap:0.7rem; padding:0.7rem 0.9rem; border-radius:8px;
+    margin-bottom:0.5rem; font-size:0.95rem; border:1.5px solid var(--line); cursor:pointer; background:#fff;
+    transition:border-color .12s, background .12s;
+  }
+  .practice-opt:hover{border-color:var(--moss);}
+  .practice-opt.selected{border-color:var(--moss); background:var(--moss-pale);}
+  .practice-opt.reveal-correct{border-color:var(--moss); background:var(--moss-pale); font-weight:600;}
+  .practice-opt.reveal-wrong{border-color:var(--error); background:var(--error-pale);}
+  .practice-opt .letter{flex-shrink:0; width:22px; height:22px; border-radius:50%; border:1.5px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:0.75rem; color:var(--ink-soft); background:#fff;}
+  .practice-opt.selected .letter{background:var(--moss); border-color:var(--moss); color:#fff;}
+  .practice-nav{display:flex; justify-content:space-between; gap:0.6rem; margin-top:1rem;}
+  .score-card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:2rem; text-align:center; margin-bottom:1.5rem;}
+  .score-big{font-family:'Fraunces',serif; font-size:3rem; font-weight:700; color:var(--moss-deep);}
+  .score-sub{color:var(--ink-soft); font-size:0.95rem; margin-top:0.3rem;}
+  .review-item{border:1px solid var(--line); border-radius:9px; padding:1rem 1.2rem; margin-bottom:0.7rem; background:var(--card);}
+  .review-item.wrong{border-left:4px solid var(--error);}
+  .review-item.right{border-left:4px solid var(--moss);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Quiz <span>Forge</span></h1>
+      <p>Paste, upload, or link anything — get a quiz in seconds.</p>
+    </div>
+    <button class="ghost" id="btn-settings">API Key</button>
+  </header>
+
+  <div class="panel hidden" id="settings-panel">
+    <div class="field">
+      <label>Gemini API key</label>
+      <input type="text" id="input-apikey" placeholder="AIza...">
+      <div style="font-size:0.8rem; color:var(--ink-soft); margin-top:0.5rem;">
+        Get a free key at <strong>aistudio.google.com/apikey</strong>. Stored only in this browser tab's memory — cleared when you close the page.
+      </div>
+    </div>
+    <button class="primary" id="btn-save-key" style="margin-top:0.8rem;">Save for this session</button>
+    <span id="key-status" style="margin-left:0.8rem; font-size:0.85rem; color:var(--moss-deep);"></span>
+  </div>
+
+  <div id="setup-screen">
+    <div class="tabs" id="tabs">
+      <div class="tab active" data-mode="text">Text</div>
+      <div class="tab" data-mode="topic">Topic</div>
+      <div class="tab" data-mode="pdf">PDF / DOCX</div>
+      <div class="tab" data-mode="htmltxt">HTML / TXT</div>
+      <div class="tab" data-mode="url">URL</div>
+      <div class="tab" data-mode="image">Image</div>
+      <div class="tab" data-mode="youtube">YouTube</div>
+    </div>
+
+    <div class="panel">
+      <div class="mode-panel" id="panel-text">
+        <div class="field">
+          <label>Paste your content</label>
+          <textarea id="input-text" placeholder="Paste lecture notes, an article, a chapter — any length."></textarea>
+        </div>
+      </div>
+      <div class="mode-panel hidden" id="panel-topic">
+        <div class="field">
+          <label>Topic</label>
+          <input type="text" id="input-topic" placeholder="e.g. Soil classification in Karnataka">
+        </div>
+      </div>
+      <div class="mode-panel hidden" id="panel-pdf">
+        <div class="field">
+          <label>Upload a PDF or Word document</label>
+          <div class="dropzone" id="dropzone-pdf">
+            <strong>Click to upload</strong> or drag a .pdf / .docx file here
+            <div class="filename" id="filename-pdf"></div>
+          </div>
+          <input type="file" id="input-pdf" accept=".pdf,.docx" class="hidden">
+        </div>
+      </div>
+      <div class="mode-panel hidden" id="panel-htmltxt">
+        <div class="field">
+          <label>Upload an HTML or text file</label>
+          <div class="dropzone" id="dropzone-htmltxt">
+            <strong>Click to upload</strong> or drag a .html / .htm / .txt file here
+            <div class="filename" id="filename-htmltxt"></div>
+          </div>
+          <input type="file" id="input-htmltxt" accept=".html,.htm,.txt" class="hidden">
+        </div>
+      </div>
+      <div class="mode-panel hidden" id="panel-url">
+        <div class="field">
+          <label>Webpage URL</label>
+          <input type="url" id="input-url" placeholder="https://example.com/article">
+        </div>
+        <div class="field" style="font-size:0.82rem; color:var(--ink-soft);">
+          Sites that block scripted access may not work — copy-paste the text instead if it fails.
+        </div>
+      </div>
+      <div class="mode-panel hidden" id="panel-image">
+        <div class="field">
+          <label>Upload an image</label>
+          <div class="dropzone" id="dropzone-image">
+            <strong>Click to upload</strong> or drag a diagram, chart, or photo here
+            <div class="filename" id="filename-image"></div>
+          </div>
+          <input type="file" id="input-image" accept="image/*" class="hidden">
+          <img id="preview-image" class="hidden" style="max-width:100%; margin-top:0.8rem; border-radius:8px; border:1px solid var(--line);">
+        </div>
+      </div>
+      <div class="mode-panel hidden" id="panel-youtube">
+        <div class="field">
+          <label>YouTube URL</label>
+          <input type="url" id="input-youtube" placeholder="https://www.youtube.com/watch?v=...">
+        </div>
+        <div class="field" style="font-size:0.82rem; color:var(--ink-soft);">
+          Transcript-based generation isn't available yet. Paste the video's transcript into the Text tab for now.
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:1.25rem;">
+        <label>Total number of questions (max 200)</label>
+        <input type="number" id="input-total" value="10" min="1" max="200" style="max-width:140px;">
+      </div>
+
+      <div class="field">
+        <label>Question type mix</label>
+        <table class="qtype-table">
+          <thead><tr><th>Type</th><th class="desc">What it is</th><th>Count</th></tr></thead>
+          <tbody id="qtype-body"></tbody>
+        </table>
+        <div class="qtype-total" id="qtype-total">
+          <span id="qtype-total-label">0 of 10 questions assigned</span>
+          <button class="ghost" id="btn-autofill" style="padding:0.3rem 0.8rem; font-size:0.8rem;">Fill remaining as Standard MCQ</button>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:1.25rem;">
+        <div class="field">
+          <label>Difficulty</label>
+          <select id="input-difficulty">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Language</label>
+          <div class="lang-toggle" style="margin-top:0.5rem;">
+            <label><input type="radio" name="lang" value="en" checked> English</label>
+            <label><input type="radio" name="lang" value="bilingual"> English + Kannada</label>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:1.25rem;">
+        <button class="primary" id="btn-generate">Generate Quiz</button>
+      </div>
+      <div class="status hidden" id="status"></div>
+    </div>
+  </div>
+
+  <!-- RESULTS (answer key view) -->
+  <div id="results"></div>
+  <div class="empty-state" id="empty-state">
+    <div class="glyph">Q</div>
+    <div>Your generated quiz will appear here.</div>
+  </div>
+
+  <!-- PRACTICE MODE -->
+  <div id="practice-screen" class="hidden"></div>
+</div>
+
+<script>
+// ===================== CONFIG =====================
+const QUESTION_TYPES = [
+  {key:'standard_mcq', label:'Standard MCQ', desc:'4-option multiple choice'},
+  {key:'match_following', label:'Match the Following', desc:'Match items in List I to List II'},
+  {key:'two_statement', label:'2-Statement', desc:'Evaluate two statements, pick which are true'},
+  {key:'multi_statement', label:'Multiple Statements', desc:'Evaluate 3+ statements, pick which are true'},
+  {key:'chronological', label:'Chronological Order', desc:'Arrange events/items in correct sequence'},
+  {key:'assertion_reason', label:'Assertion & Reasoning', desc:'Assertion (A) and Reason (R), evaluate both'},
+  {key:'pairing', label:'Pairing', desc:'Match pairs, choose the correctly paired option'}
+];
+const BATCH_SIZE = 12; // questions generated per API call — kept modest since complex types (match-the-following, assertion-reasoning etc) use verbose JSON and can otherwise hit the output token limit mid-response
+
+let currentMode = 'text';
+let currentQuiz = null; // { title, questions: [...] } — questions have a `qtype` field
+let pendingImageBase64 = null, pendingImageMediaType = null;
+let apiKey = '';
+let practiceState = null; // { index, answers: [], quiz }
+
+// ===================== SETTINGS =====================
+document.getElementById('btn-settings').addEventListener('click', ()=>{
+  document.getElementById('settings-panel').classList.toggle('hidden');
+});
+document.getElementById('btn-save-key').addEventListener('click', ()=>{
+  const val = document.getElementById('input-apikey').value.trim();
+  if(!val){ document.getElementById('key-status').textContent = 'Enter a key first.'; return; }
+  apiKey = val;
+  document.getElementById('key-status').textContent = '✓ Saved for this session';
+  document.getElementById('input-apikey').value = '••••••••••••••••';
+});
+
+// ===================== TABS =====================
+const MODES = ['text','topic','pdf','htmltxt','url','image','youtube'];
+document.getElementById('tabs').addEventListener('click', (e)=>{
+  const tab = e.target.closest('.tab');
+  if(!tab) return;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  tab.classList.add('active');
+  currentMode = tab.dataset.mode;
+  MODES.forEach(m=>document.getElementById('panel-'+m).classList.toggle('hidden', m!==currentMode));
+});
+
+// ===================== QUESTION TYPE TABLE =====================
+const qtypeBody = document.getElementById('qtype-body');
+QUESTION_TYPES.forEach((t,i)=>{
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td><strong>${t.label}</strong></td><td class="desc">${t.desc}</td>
+    <td><input type="number" min="0" max="200" value="${i===0?10:0}" class="qtype-count" data-key="${t.key}"></td>`;
+  qtypeBody.appendChild(tr);
+});
+function updateQtypeTotal(){
+  const total = parseInt(document.getElementById('input-total').value) || 0;
+  let assigned = 0;
+  document.querySelectorAll('.qtype-count').forEach(inp=>assigned += (parseInt(inp.value)||0));
+  const label = document.getElementById('qtype-total-label');
+  const wrap = document.getElementById('qtype-total');
+  label.textContent = assigned + ' of ' + total + ' questions assigned';
+  wrap.classList.toggle('over', assigned !== total);
+}
+document.getElementById('input-total').addEventListener('input', updateQtypeTotal);
+qtypeBody.addEventListener('input', updateQtypeTotal);
+document.getElementById('btn-autofill').addEventListener('click', ()=>{
+  const total = parseInt(document.getElementById('input-total').value) || 0;
+  let assigned = 0;
+  document.querySelectorAll('.qtype-count').forEach(inp=>assigned += (parseInt(inp.value)||0));
+  const remaining = total - assigned;
+  if(remaining > 0){
+    const mcqInput = document.querySelector('.qtype-count[data-key="standard_mcq"]');
+    mcqInput.value = (parseInt(mcqInput.value)||0) + remaining;
+  }
+  updateQtypeTotal();
+});
+updateQtypeTotal();
+
+// ===================== FILE INPUTS =====================
+// PDF/DOCX
+const dzPdf = document.getElementById('dropzone-pdf');
+const inPdf = document.getElementById('input-pdf');
+let pdfExtractedText = '';
+dzPdf.addEventListener('click', ()=>inPdf.click());
+dzPdf.addEventListener('dragover', e=>{e.preventDefault(); dzPdf.classList.add('drag');});
+dzPdf.addEventListener('dragleave', ()=>dzPdf.classList.remove('drag'));
+dzPdf.addEventListener('drop', e=>{ e.preventDefault(); dzPdf.classList.remove('drag'); if(e.dataTransfer.files.length) handlePdfFile(e.dataTransfer.files[0]); });
+inPdf.addEventListener('change', e=>{ if(e.target.files.length) handlePdfFile(e.target.files[0]); });
+async function handlePdfFile(file){
+  document.getElementById('filename-pdf').textContent = 'Reading ' + file.name + ' …';
+  try{
+    if(file.name.toLowerCase().endsWith('.docx')){
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({arrayBuffer});
+      pdfExtractedText = result.value;
+    } else {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+      let text = '';
+      for(let i=1;i<=pdf.numPages;i++){
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map(it=>it.str).join(' ') + '\n';
+      }
+      pdfExtractedText = text;
+    }
+    document.getElementById('filename-pdf').textContent = '✓ ' + file.name + ' (' + pdfExtractedText.length.toLocaleString() + ' characters)';
+  }catch(err){
+    document.getElementById('filename-pdf').textContent = 'Could not read ' + file.name + ': ' + err.message;
+    pdfExtractedText = '';
+  }
+}
+
+// HTML/TXT
+const dzHt = document.getElementById('dropzone-htmltxt');
+const inHt = document.getElementById('input-htmltxt');
+let htmltxtExtractedText = '';
+dzHt.addEventListener('click', ()=>inHt.click());
+dzHt.addEventListener('dragover', e=>{e.preventDefault(); dzHt.classList.add('drag');});
+dzHt.addEventListener('dragleave', ()=>dzHt.classList.remove('drag'));
+dzHt.addEventListener('drop', e=>{ e.preventDefault(); dzHt.classList.remove('drag'); if(e.dataTransfer.files.length) handleHtmlTxtFile(e.dataTransfer.files[0]); });
+inHt.addEventListener('change', e=>{ if(e.target.files.length) handleHtmlTxtFile(e.target.files[0]); });
+async function handleHtmlTxtFile(file){
+  document.getElementById('filename-htmltxt').textContent = 'Reading ' + file.name + ' …';
+  try{
+    const raw = await file.text();
+    if(file.name.toLowerCase().match(/\.html?$/)){
+      const doc = new DOMParser().parseFromString(raw, 'text/html');
+      doc.querySelectorAll('script,style').forEach(el=>el.remove());
+      htmltxtExtractedText = doc.body ? doc.body.innerText : raw;
+    } else {
+      htmltxtExtractedText = raw;
+    }
+    document.getElementById('filename-htmltxt').textContent = '✓ ' + file.name + ' (' + htmltxtExtractedText.length.toLocaleString() + ' characters)';
+  }catch(err){
+    document.getElementById('filename-htmltxt').textContent = 'Could not read ' + file.name + ': ' + err.message;
+    htmltxtExtractedText = '';
+  }
+}
+
+// Image
+const dzImg = document.getElementById('dropzone-image');
+const inImg = document.getElementById('input-image');
+dzImg.addEventListener('click', ()=>inImg.click());
+dzImg.addEventListener('dragover', e=>{e.preventDefault(); dzImg.classList.add('drag');});
+dzImg.addEventListener('dragleave', ()=>dzImg.classList.remove('drag'));
+dzImg.addEventListener('drop', e=>{ e.preventDefault(); dzImg.classList.remove('drag'); if(e.dataTransfer.files.length) handleImageFile(e.dataTransfer.files[0]); });
+inImg.addEventListener('change', e=>{ if(e.target.files.length) handleImageFile(e.target.files[0]); });
+function handleImageFile(file){
+  pendingImageMediaType = file.type || 'image/png';
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    pendingImageBase64 = reader.result.split(',')[1];
+    document.getElementById('filename-image').textContent = '✓ ' + file.name;
+    const prev = document.getElementById('preview-image');
+    prev.src = reader.result;
+    prev.classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
+}
+
+// ===================== STATUS =====================
+function setStatus(msg, isErr){
+  const el = document.getElementById('status');
+  el.classList.remove('hidden');
+  el.classList.toggle('err', !!isErr);
+  el.innerHTML = isErr ? msg : '<div class="spinner"></div>' + msg;
+}
+function clearStatus(){ document.getElementById('status').classList.add('hidden'); }
+
+// ===================== GATHER SOURCE =====================
+async function gatherSource(){
+  switch(currentMode){
+    case 'text': {
+      const t = document.getElementById('input-text').value.trim();
+      if(!t) throw new Error('Paste some text first.');
+      return {type:'text', content:t};
+    }
+    case 'topic': {
+      const t = document.getElementById('input-topic').value.trim();
+      if(!t) throw new Error('Enter a topic first.');
+      return {type:'text', content:'Topic: ' + t + '\n(No source text provided — use accurate general knowledge of this topic.)'};
+    }
+    case 'pdf': {
+      if(!pdfExtractedText.trim()) throw new Error('Upload a PDF or DOCX first.');
+      return {type:'text', content: pdfExtractedText};
+    }
+    case 'htmltxt': {
+      if(!htmltxtExtractedText.trim()) throw new Error('Upload an HTML or TXT file first.');
+      return {type:'text', content: htmltxtExtractedText};
+    }
+    case 'url': {
+      const u = document.getElementById('input-url').value.trim();
+      if(!u) throw new Error('Enter a URL first.');
+      setStatus('Fetching page content…');
+      const res = await fetch(u);
+      if(!res.ok) throw new Error('Could not fetch that URL (status ' + res.status + '). Try copy-pasting the text into the Text tab instead.');
+      const html = await res.text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      doc.querySelectorAll('script,style,nav,footer,header,noscript').forEach(el=>el.remove());
+      const text = doc.body ? doc.body.innerText : '';
+      if(!text.trim()) throw new Error('Could not extract readable text from that page.');
+      return {type:'text', content: text.slice(0, 40000)};
+    }
+    case 'image': {
+      if(!pendingImageBase64) throw new Error('Upload an image first.');
+      return {type:'image', base64: pendingImageBase64, mediaType: pendingImageMediaType};
+    }
+    case 'youtube': {
+      throw new Error('YouTube transcript extraction is coming in a future update. Paste the transcript into the Text tab for now.');
+    }
+  }
+}
+
+// ===================== PROMPT BUILDING =====================
+function typeSchemaAndInstructions(key){
+  switch(key){
+    case 'standard_mcq':
+      return `"standard_mcq": {"qtype":"standard_mcq","question":"...", "options":["A text","B text","C text","D text"], "correctIndex":0, "explanation":"..."}`;
+    case 'match_following':
+      return `"match_following": {"qtype":"match_following","question":"instruction text e.g. Match List I with List II", "listI":["item1","item2","item3","item4"], "listII":["match1","match2","match3","match4"], "options":["A) 1-ii,2-iv,3-i,4-iii","B) ...","C) ...","D) ..."], "correctIndex":0, "explanation":"..."} — listI and listII entries are labelled with numerals/roman numerals inside the option text.`;
+    case 'two_statement':
+      return `"two_statement": {"qtype":"two_statement","question":"context if any","statements":["Statement I: ...","Statement II: ..."], "options":["Both I and II are true","Only I is true","Only II is true","Both are false"], "correctIndex":0, "explanation":"..."}`;
+    case 'multi_statement':
+      return `"multi_statement": {"qtype":"multi_statement","question":"context if any","statements":["I. ...","II. ...","III. ..."], "options":["I and II only","II and III only","I, II and III","None"], "correctIndex":0, "explanation":"..."} — use 3 to 5 statements.`;
+    case 'chronological':
+      return `"chronological": {"qtype":"chronological","question":"Arrange the following in chronological order:","items":["Event A","Event B","Event C","Event D"], "options":["A) A-B-C-D","B) B-A-C-D","C) C-A-B-D","D) D-C-B-A"], "correctIndex":0, "explanation":"..."}`;
+    case 'assertion_reason':
+      return `"assertion_reason": {"qtype":"assertion_reason","assertion":"Assertion (A): ...","reason":"Reason (R): ...", "options":["Both A and R are true and R is the correct explanation of A","Both A and R are true but R is NOT the correct explanation of A","A is true but R is false","A is false but R is true"], "correctIndex":0, "explanation":"..."}`;
+    case 'pairing':
+      return `"pairing": {"qtype":"pairing","question":"context e.g. Consider the following pairs:","pairs":["Item 1 : Related fact 1","Item 2 : Related fact 2","Item 3 : Related fact 3"], "options":["A) 1 and 2 only","B) 2 and 3 only","C) All are correctly paired","D) None are correctly paired"], "correctIndex":0, "explanation":"..."} — some pairs in the list should be deliberately WRONG so the question is meaningful.`;
+  }
+}
+
+function buildBatchPrompt(typeCounts, difficulty, lang, startNumber){
+  const langInstruction = lang === 'bilingual'
+    ? 'For every piece of question text, statement, option, and explanation: write it in English, then on the next line provide the Kannada translation prefixed "KN: ". Do this consistently for every field.'
+    : 'Write everything in English.';
+
+  const typeLines = typeCounts.filter(t=>t.count>0).map(t=>{
+    const info = QUESTION_TYPES.find(q=>q.key===t.key);
+    return `- ${t.count} question(s) of type "${t.key}" (${info.label}: ${info.desc})`;
+  }).join('\n');
+
+  const schemas = typeCounts.filter(t=>t.count>0).map(t=>typeSchemaAndInstructions(t.key)).join('\n');
+
+  return `You are an expert exam-question writer for competitive government exams in India. Generate a batch of ${difficulty}-difficulty quiz questions based on the source content provided.
+
+Generate exactly this mix:
+${typeLines}
+
+${langInstruction}
+
+Each question type has its own JSON shape. Use exactly these shapes depending on qtype:
+${schemas}
+
+Respond with ONLY a raw JSON object, no markdown fences, no preamble, in exactly this shape:
+{"questions": [ <question objects as specified above, mixed in any order, each with its correct "qtype" field> ]}
+
+Base every question strictly on the source content given (or, for a bare topic with no source text, on accurate general knowledge). Do not invent facts not supported by the source. Vary which option index is correct across questions. Do not repeat questions from earlier in this content if this is a continuation batch.`;
+}
+
+// ===================== GEMINI API CALL =====================
+async function callGemini(source, systemPrompt){
+  if(!apiKey) throw new Error('Add your Gemini API key first (top right — "API Key" button).');
+
+  let userParts;
+  if(source.type === 'image'){
+    userParts = [
+      {inline_data: {mime_type: source.mediaType, data: source.base64}},
+      {text: 'Generate the quiz batch from this image, following the system instructions exactly.'}
+    ];
+  } else {
+    userParts = [{text: 'SOURCE CONTENT:\n\n' + source.content}];
+  }
+
+  const model = 'gemini-2.5-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+  const response = await fetch(url, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role:'user', parts: userParts }],
+      generationConfig: { maxOutputTokens: 16000, responseMimeType: 'application/json' }
+    })
+  });
+
+  if(!response.ok){
+    const errText = await response.text();
+    if(response.status === 400 && errText.includes('API_KEY_INVALID')) throw new Error('That API key was rejected. Check it was copied correctly from aistudio.google.com/apikey.');
+    if(response.status === 403) throw new Error('That API key was rejected (403). Check it was copied correctly.');
+    if(response.status === 429) throw new Error('Rate limit hit on the free tier. Wait a minute and try again, or reduce the question count.');
+    throw new Error('Generation failed (' + response.status + '): ' + errText.slice(0,200));
+  }
+  const data = await response.json();
+  const candidate = data.candidates && data.candidates[0];
+  const finishReason = candidate && candidate.finishReason;
+  const textBlock = candidate && candidate.content && candidate.content.parts && candidate.content.parts.find(p=>p.text);
+  if(!textBlock){
+    if(finishReason === 'MAX_TOKENS') throw new Error('The response was cut off (ran out of output length) before any content was returned. Try a smaller batch of questions per type.');
+    throw new Error('No text returned from the model' + (finishReason ? ' (finishReason: ' + finishReason + ')' : '') + '.');
+  }
+
+  let cleaned = textBlock.text.trim().replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'');
+  try{
+    return JSON.parse(cleaned);
+  } catch(e){
+    if(finishReason === 'MAX_TOKENS'){
+      // Response was truncated mid-JSON. Try to salvage complete question objects from what we got.
+      const recovered = recoverPartialQuestions(cleaned);
+      if(recovered.length > 0) return { questions: recovered, _truncated: true };
+      throw new Error('The response was cut off before completing (ran out of output length), and none of it could be recovered. Try requesting fewer questions of this type in one batch.');
+    }
+    throw new Error('Could not parse a batch of the generated quiz. Raw response started with: ' + cleaned.slice(0,150));
+  }
+}
+
+// When a response is truncated mid-array, this pulls out whatever complete {...} question objects
+// appear before the cutoff, so a partial batch still contributes usable questions instead of failing outright.
+function recoverPartialQuestions(text){
+  const results = [];
+  const arrayStart = text.indexOf('"questions"');
+  if(arrayStart === -1) return results;
+  let i = text.indexOf('[', arrayStart);
+  if(i === -1) return results;
+  i++;
+  while(i < text.length){
+    while(i < text.length && /[\s,]/.test(text[i])) i++;
+    if(text[i] !== '{') break;
+    let depth = 0, start = i, inStr = false, esc = false;
+    for(; i < text.length; i++){
+      const c = text[i];
+      if(inStr){
+        if(esc){ esc = false; }
+        else if(c === '\\'){ esc = true; }
+        else if(c === '"'){ inStr = false; }
+        continue;
+      }
+      if(c === '"'){ inStr = true; continue; }
+      if(c === '{') depth++;
+      else if(c === '}'){ depth--; if(depth === 0){ i++; break; } }
+    }
+    if(depth !== 0) break; // unclosed object — truncation landed mid-question, stop here
+    const candidate = text.slice(start, i);
+    try{ results.push(JSON.parse(candidate)); } catch(e){ /* skip malformed fragment */ }
+  }
+  return results;
+}
+
+// ===================== BATCHED GENERATION =====================
+function splitIntoBatches(typeCounts){
+  // Splits the full type-count request into batches of ~BATCH_SIZE questions each,
+  // preserving the requested type ratios as closely as possible per batch.
+  const totalRequested = typeCounts.reduce((s,t)=>s+t.count,0);
+  const numBatches = Math.max(1, Math.ceil(totalRequested / BATCH_SIZE));
+  const batches = Array.from({length:numBatches}, ()=>typeCounts.map(t=>({key:t.key, count:0})));
+
+  typeCounts.forEach((t,ti)=>{
+    let remaining = t.count;
+    let b = 0;
+    while(remaining > 0){
+      batches[b % numBatches][ti].count += 1;
+      remaining--;
+      b++;
+    }
+  });
+  return batches.filter(b => b.reduce((s,t)=>s+t.count,0) > 0);
+}
+
+async function generateFullQuiz(source, typeCounts, difficulty, lang){
+  const batches = splitIntoBatches(typeCounts);
+  let allQuestions = [];
+  let title = null;
+  let failedBatches = 0;
+  let truncatedBatches = 0;
+
+  for(let i=0;i<batches.length;i++){
+    setStatus(`Generating questions… batch ${i+1} of ${batches.length}`);
+    const prompt = buildBatchPrompt(batches[i], difficulty, lang, allQuestions.length+1);
+    let result = null;
+    try{
+      result = await callGemini(source, prompt);
+    }catch(e){
+      // one retry on failure before giving up on this batch — transient truncation/parse issues often succeed on a second try
+      try{
+        setStatus(`Batch ${i+1} of ${batches.length} had an issue — retrying…`);
+        result = await callGemini(source, prompt);
+      }catch(e2){
+        failedBatches++;
+        continue; // move on to the next batch rather than aborting the whole quiz
+      }
+    }
+    if(result._truncated) truncatedBatches++;
+    if(result.questions && result.questions.length){
+      allQuestions = allQuestions.concat(result.questions);
+    }
+    if(!title && result.title) title = result.title;
+  }
+
+  if(allQuestions.length === 0) throw new Error('No questions were generated after retrying. Try reducing the question count or simplifying the type mix.');
+
+  let note = '';
+  if(failedBatches > 0) note += ` (${failedBatches} batch${failedBatches>1?'es':''} failed even after retry — you got ${allQuestions.length} of the requested questions)`;
+  else if(truncatedBatches > 0) note += ` (${truncatedBatches} batch${truncatedBatches>1?'es':''} were cut short and partially recovered — you got ${allQuestions.length} of the requested questions)`;
+
+  return { title: title || 'Generated Quiz', questions: allQuestions, _note: note };
+}
+
+// ===================== GENERATE BUTTON =====================
+document.getElementById('btn-generate').addEventListener('click', async ()=>{
+  const btn = document.getElementById('btn-generate');
+  btn.disabled = true;
+  try{
+    const total = parseInt(document.getElementById('input-total').value) || 0;
+    if(total < 1 || total > 200) throw new Error('Total questions must be between 1 and 200.');
+
+    const typeCounts = [];
+    document.querySelectorAll('.qtype-count').forEach(inp=>{
+      const c = parseInt(inp.value) || 0;
+      if(c > 0) typeCounts.push({key: inp.dataset.key, count: c});
+    });
+    const assigned = typeCounts.reduce((s,t)=>s+t.count,0);
+    if(assigned !== total) throw new Error('Question type counts (' + assigned + ') must add up to the total (' + total + ').');
+    if(typeCounts.length === 0) throw new Error('Assign at least one question type.');
+
+    const source = await gatherSource();
+    const difficulty = document.getElementById('input-difficulty').value;
+    const lang = document.querySelector('input[name=lang]:checked').value;
+
+    const quiz = await generateFullQuiz(source, typeCounts, difficulty, lang);
+    currentQuiz = quiz;
+    showLandingChoice(quiz);
+    if(quiz._note){ setStatus(quiz._note); }
+    else { clearStatus(); }
+  }catch(err){
+    setStatus(err.message, true);
+  }finally{
+    btn.disabled = false;
+  }
+});
+
+// ===================== HELPERS =====================
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str == null ? '' : String(str);
+  return d.innerHTML;
+}
+function typeLabel(qtype){
+  const t = QUESTION_TYPES.find(x=>x.key===qtype);
+  return t ? t.label : qtype;
+}
+// Normalizes any question type into a flat options[]/correctIndex/questionText for uniform rendering
+function romanNumeral(n){
+  const map = ['i','ii','iii','iv','v','vi','vii','viii','ix','x'];
+  return map[n-1] || String(n);
+}
+
+function normalizeQuestion(q){
+  const letters = ['A','B','C','D','E','F'];
+  let questionText = q.question || '';
+  let options = q.options || [];
+  let matchTable = null; // {rows: [{num, left, letter, right}]} for match_following, rendered as a real table
+
+  if(q.qtype === 'match_following'){
+    questionText = q.question || 'Match List I with List II:';
+    if(q.listI && q.listII){
+      const rowCount = Math.max(q.listI.length, q.listII.length);
+      const rows = [];
+      for(let i=0;i<rowCount;i++){
+        rows.push({
+          num: i+1,
+          left: q.listI[i] || '',
+          letter: romanNumeral(i+1),
+          right: q.listII[i] || ''
+        });
+      }
+      matchTable = rows;
+    }
+  } else if(q.qtype === 'two_statement' || q.qtype === 'multi_statement'){
+    const stmts = (q.statements||[]).join('\n');
+    questionText = (q.question ? q.question+'\n' : '') + stmts;
+  } else if(q.qtype === 'chronological'){
+    const items = (q.items||[]).map((it,i)=> (i+1)+'. '+it).join('\n');
+    questionText = (q.question || 'Arrange in chronological order:') + '\n' + items;
+  } else if(q.qtype === 'assertion_reason'){
+    questionText = (q.assertion||'') + '\n' + (q.reason||'');
+  } else if(q.qtype === 'pairing'){
+    const pairs = (q.pairs||[]).join('\n');
+    questionText = (q.question ? q.question+'\n' : '') + pairs;
+  }
+  return {questionText, options, matchTable};
+}
+
+function matchTableHtml(matchTable){
+  if(!matchTable) return '';
+  let rows = matchTable.map(r=>`<tr><td>${r.num}. ${escapeHtml(r.left)}</td><td>${r.letter}. ${escapeHtml(r.right)}</td></tr>`).join('');
+  return `<table class="match-table"><thead><tr><th>List I</th><th>List II</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function questionBodyHtml(norm){
+  if(norm.matchTable){
+    const hasExtraText = norm.questionText && norm.questionText.trim() !== 'Match List I with List II:';
+    return (hasExtraText ? `<div class="qtext">${escapeHtml(norm.questionText)}</div>` : '') + matchTableHtml(norm.matchTable);
+  }
+  return `<div class="qtext">${escapeHtml(norm.questionText)}</div>`;
+}
+
+// ===================== POST-GENERATION LANDING CHOICE =====================
+function showLandingChoice(quiz){
+  document.getElementById('setup-screen').classList.add('hidden');
+  document.getElementById('empty-state').classList.add('hidden');
+  const el = document.getElementById('results');
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <div class="score-card">
+      <h2 style="margin-bottom:0.4rem;">${escapeHtml(quiz.title || 'Generated Quiz')}</h2>
+      <div class="score-sub" style="margin-bottom:1.5rem;">${quiz.questions.length} questions ready — how do you want to start?</div>
+      <div class="actions" style="justify-content:center;">
+        <button class="primary choice-btn" id="btn-goto-practice">Practice Mode<span class="sub">Answer questions, no answers shown yet</span></button>
+        <button class="ghost choice-btn" id="btn-goto-key">Answer Key<span class="sub">See all correct answers now</span></button>
+      </div>
+    </div>`;
+  document.getElementById('btn-goto-practice').addEventListener('click', startPractice);
+  document.getElementById('btn-goto-key').addEventListener('click', ()=>renderQuiz(quiz));
+}
+
+// ===================== RENDER ANSWER-KEY VIEW =====================
+function renderQuiz(quiz){
+  document.getElementById('empty-state').classList.add('hidden');
+  document.getElementById('setup-screen').classList.add('hidden');
+  const el = document.getElementById('results');
+  const letters = ['A','B','C','D','E','F'];
+
+  let html = `<div class="quiz-head">
+    <div>
+      <h2>${escapeHtml(quiz.title || 'Generated Quiz')}</h2>
+      <div class="meta">${quiz.questions.length} questions</div>
+    </div>
+    <div class="actions">
+      <button class="primary" id="btn-practice">Practice Mode</button>
+      <button class="ghost" id="btn-download-pdf">Download PDF</button>
+      <button class="ghost" id="btn-download-flt">Download FLT HTML</button>
+      <button class="ghost" id="btn-new-quiz">New Quiz</button>
+    </div>
+  </div>`;
+
+  quiz.questions.forEach((q, i)=>{
+    const norm = normalizeQuestion(q);
+    html += `<div class="qcard">
+      <div class="qnum">Question ${i+1} <span class="qtype-badge">${typeLabel(q.qtype)}</span></div>
+      ${questionBodyHtml(norm)}`;
+    norm.options.forEach((opt, j)=>{
+      const isCorrect = j === q.correctIndex;
+      html += `<div class="opt ${isCorrect?'correct':''}"><span class="letter">${letters[j]||j+1}</span><span>${escapeHtml(opt)}</span></div>`;
+    });
+    if(q.explanation) html += `<div class="explain">${escapeHtml(q.explanation)}</div>`;
+    html += `</div>`;
+  });
+
+  el.innerHTML = html;
+  document.getElementById('btn-download-pdf').addEventListener('click', downloadPdf);
+  document.getElementById('btn-download-flt').addEventListener('click', downloadFlt);
+  document.getElementById('btn-practice').addEventListener('click', startPractice);
+  document.getElementById('btn-new-quiz').addEventListener('click', ()=>{
+    document.getElementById('setup-screen').classList.remove('hidden');
+    document.getElementById('results').innerHTML = '';
+    document.getElementById('empty-state').classList.remove('hidden');
+  });
+}
+
+// ===================== PDF EXPORT (redesigned) =====================
+// Draws a bordered List I / List II table directly onto the jsPDF doc, returns the new y position
+function drawMatchTablePdf(doc, matchTable, marginX, y, contentWidth, ensureSpace, colors){
+  const colW = contentWidth / 2;
+  const rowH = 18;
+  const headerH = 20;
+
+  ensureSpace(headerH + matchTable.length*rowH + 10);
+
+  doc.setFillColor(...colors.mossPale);
+  doc.rect(marginX, y, colW, headerH, 'F');
+  doc.rect(marginX+colW, y, colW, headerH, 'F');
+  doc.setDrawColor(...colors.line);
+  doc.setLineWidth(0.6);
+  doc.rect(marginX, y, colW, headerH);
+  doc.rect(marginX+colW, y, colW, headerH);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(...colors.moss);
+  doc.text('List I', marginX+8, y+13);
+  doc.text('List II', marginX+colW+8, y+13);
+  doc.setTextColor(...colors.ink);
+  y += headerH;
+
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(9.5);
+  matchTable.forEach(row=>{
+    doc.rect(marginX, y, colW, rowH);
+    doc.rect(marginX+colW, y, colW, rowH);
+    const leftText = doc.splitTextToSize(row.num + '. ' + row.left, colW-16)[0] || '';
+    const rightText = doc.splitTextToSize(row.letter + '. ' + row.right, colW-16)[0] || '';
+    doc.text(leftText, marginX+8, y+12);
+    doc.text(rightText, marginX+colW+8, y+12);
+    y += rowH;
+  });
+  return y + 10;
+}
+
+function downloadPdf(){
+  if(!currentQuiz) return;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'a4'});
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginX = 44;
+  const contentWidth = pageWidth - marginX*2;
+  const letters = ['A','B','C','D','E','F'];
+
+  // brand colors
+  const moss = [51, 74, 45];       // deep green
+  const mossPale = [232, 239, 227];
+  const gold = [163, 121, 31];
+  const ink = [43, 38, 32];
+  const inkSoft = [107, 98, 85];
+  const line = [221, 212, 194];
+
+  function drawHeader(){
+    doc.setFillColor(...moss);
+    doc.rect(0, 0, pageWidth, 64, 'F');
+    doc.setTextColor(255,255,255);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(15);
+    doc.text(currentQuiz.title || 'Generated Quiz', marginX, 32);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(9);
+    doc.text(currentQuiz.questions.length + ' questions · Quiz Forge', marginX, 48);
+    doc.setTextColor(...ink);
+  }
+  function drawFooter(pageNum){
+    doc.setDrawColor(...line);
+    doc.setLineWidth(0.5);
+    doc.line(marginX, pageHeight-36, pageWidth-marginX, pageHeight-36);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...inkSoft);
+    doc.text('Page ' + pageNum, pageWidth - marginX, pageHeight-22, {align:'right'});
+    doc.setTextColor(...ink);
+  }
+
+  let pageNum = 1;
+  drawHeader();
+  drawFooter(pageNum);
+  let y = 90;
+
+  function ensureSpace(needed){
+    if(y + needed > pageHeight - 50){
+      doc.addPage();
+      pageNum++;
+      drawHeader();
+      drawFooter(pageNum);
+      y = 90;
+    }
+  }
+
+  currentQuiz.questions.forEach((q, i)=>{
+    const norm = normalizeQuestion(q);
+    const isMatchTable = !!norm.matchTable;
+    const qLines = isMatchTable
+      ? doc.splitTextToSize((i+1)+'.  '+(norm.questionText||'Match List I with List II:'), contentWidth-16)
+      : doc.splitTextToSize((i+1)+'.  '+norm.questionText, contentWidth-16);
+    const tableRowCount = isMatchTable ? norm.matchTable.length + 1 : 0;
+    const blockLineCount = qLines.length + tableRowCount*1.6 + norm.options.reduce((s,o)=>s + doc.splitTextToSize(o, contentWidth-40).length, 0) + 3;
+    ensureSpace(Math.min(blockLineCount*13, pageHeight-140));
+
+    // question type chip
+    doc.setFillColor(...mossPale);
+    const chipLabel = typeLabel(q.qtype);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(7.5);
+    const chipWidth = doc.getTextWidth(chipLabel) + 12;
+    doc.roundedRect(marginX, y-9, chipWidth, 13, 3, 3, 'F');
+    doc.setTextColor(...moss);
+    doc.text(chipLabel, marginX+6, y);
+    doc.setTextColor(...ink);
+    y += 14;
+
+    ensureSpace(qLines.length*13.5 + 6);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(11);
+    doc.text(qLines, marginX, y);
+    y += qLines.length * 13.5 + 5;
+
+    if(isMatchTable){
+      y = drawMatchTablePdf(doc, norm.matchTable, marginX, y, contentWidth, ensureSpace, {moss, mossPale, ink, line});
+    }
+
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(10);
+    norm.options.forEach((opt,j)=>{
+      const isCorrect = j === q.correctIndex;
+      const optLines = doc.splitTextToSize((letters[j]||j+1)+'.  '+opt, contentWidth-36);
+      ensureSpace(optLines.length*13 + 4);
+      if(isCorrect){
+        doc.setFillColor(...mossPale);
+        doc.roundedRect(marginX+14, y-9, contentWidth-28, optLines.length*13+4, 3, 3, 'F');
+        doc.setFont('helvetica','bold');
+        doc.setTextColor(...moss);
+      }
+      doc.text(optLines, marginX+20, y);
+      if(isCorrect){ doc.setFont('helvetica','normal'); doc.setTextColor(...ink); }
+      y += optLines.length * 13 + 3;
+    });
+
+    if(q.explanation){
+      const exLines = doc.splitTextToSize('Explanation: ' + q.explanation, contentWidth-36);
+      ensureSpace(exLines.length*11.5 + 8);
+      doc.setDrawColor(...gold);
+      doc.setLineWidth(1.2);
+      doc.line(marginX+16, y-6, marginX+16, y + exLines.length*11.5 - 4);
+      doc.setFont('helvetica','italic');
+      doc.setFontSize(9);
+      doc.setTextColor(...inkSoft);
+      doc.text(exLines, marginX+24, y+2);
+      doc.setTextColor(...ink);
+      doc.setFont('helvetica','normal');
+      y += exLines.length*11.5 + 10;
+    }
+    y += 10;
+    doc.setDrawColor(...line);
+    doc.setLineWidth(0.4);
+    doc.line(marginX, y-6, pageWidth-marginX, y-6);
+    y += 6;
+  });
+
+  doc.save((currentQuiz.title || 'quiz').replace(/[^a-z0-9]+/gi,'_').toLowerCase() + '.pdf');
+}
+
+// ===================== FLT HTML EXPORT =====================
+function downloadFlt(){
+  if(!currentQuiz) return;
+  const letters = ['A','B','C','D','E','F'];
+  const questionsJson = JSON.stringify(currentQuiz.questions, null, 2);
+
+  const fltHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>${escapeHtml(currentQuiz.title || 'Quiz')} — FLT Format</title>
+<style>
+  body{font-family:'Segoe UI',Arial,sans-serif; max-width:760px; margin:2rem auto; padding:0 1rem; color:#222;}
+  h1{font-size:1.5rem;}
+  .q{border:1px solid #ddd; border-radius:8px; padding:1rem 1.2rem; margin-bottom:1rem;}
+  .q .num{font-weight:700; color:#334a2d; margin-bottom:0.4rem;}
+  .q .type{font-size:0.7rem; color:#a3791f; background:#f5ecd6; padding:0.1rem 0.5rem; border-radius:10px; margin-left:0.5rem;}
+  .qtext{white-space:pre-line; margin-bottom:0.5rem;}
+  .opt{padding:0.4rem 0.6rem; border-radius:5px; margin-bottom:0.3rem;}
+  .opt.correct{background:#eef4e9; font-weight:600;}
+  .explain{font-size:0.85rem; color:#666; margin-top:0.5rem; border-top:1px dashed #ddd; padding-top:0.5rem;}
+  .match-table{width:100%; border-collapse:collapse; margin-bottom:0.6rem; font-size:0.92rem;}
+  .match-table th{text-align:left; background:#eef4e9; padding:0.4rem 0.6rem; font-size:0.8rem; color:#334a2d;}
+  .match-table td{padding:0.4rem 0.6rem; border-bottom:1px solid #eee;}
+</style>
+</head>
+<body>
+<h1>${escapeHtml(currentQuiz.title || 'Quiz')}</h1>
+<!-- FLT_DATA_START
+${questionsJson}
+FLT_DATA_END -->
+${currentQuiz.questions.map((q,i)=>{
+  const norm = normalizeQuestion(q);
+  return `<div class="q">
+  <div class="num">Q${i+1}. <span class="type">${typeLabel(q.qtype)}</span></div>
+  ${questionBodyHtml(norm)}
+  ${norm.options.map((o,j)=>`<div class="opt ${j===q.correctIndex?'correct':''}">${letters[j]}. ${escapeHtml(o)}</div>`).join('\n  ')}
+  ${q.explanation ? `<div class="explain">${escapeHtml(q.explanation)}</div>` : ''}
+</div>`;
+}).join('\n')}
+</body>
+</html>`;
+
+  const blob = new Blob([fltHtml], {type:'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (currentQuiz.title || 'quiz').replace(/[^a-z0-9]+/gi,'_').toLowerCase() + '_flt.html';
+  a.click();
+}
+
+// ===================== PRACTICE MODE =====================
+function startPractice(){
+  practiceState = {
+    index: 0,
+    answers: new Array(currentQuiz.questions.length).fill(null), // selected option index or null
+    revealed: new Array(currentQuiz.questions.length).fill(false),
+    quiz: currentQuiz
+  };
+  document.getElementById('results').classList.add('hidden');
+  document.getElementById('empty-state').classList.add('hidden');
+  document.getElementById('practice-screen').classList.remove('hidden');
+  renderPracticeQuestion();
+}
+
+function renderPracticeQuestion(){
+  const { index, quiz, answers, revealed } = practiceState;
+  const q = quiz.questions[index];
+  const norm = normalizeQuestion(q);
+  const letters = ['A','B','C','D','E','F'];
+  const el = document.getElementById('practice-screen');
+  const pct = Math.round(((index) / quiz.questions.length) * 100);
+
+  let html = `<div class="practice-bar">
+    <button class="ghost" id="btn-exit-practice">Exit</button>
+    <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+    <div style="font-size:0.85rem; color:var(--ink-soft); white-space:nowrap;">${index+1} / ${quiz.questions.length}</div>
+  </div>
+  <div class="practice-q">
+    <div class="qnum" style="margin-bottom:0.6rem;">Question ${index+1} <span class="qtype-badge">${typeLabel(q.qtype)}</span></div>
+    <div style="margin-top:0;">${questionBodyHtml(norm)}</div>
+    <div id="practice-options">`;
+
+  norm.options.forEach((opt,j)=>{
+    let cls = 'practice-opt';
+    if(revealed[index]){
+      if(j === q.correctIndex) cls += ' reveal-correct';
+      else if(j === answers[index]) cls += ' reveal-wrong';
+    } else if(answers[index] === j){
+      cls += ' selected';
+    }
+    html += `<div class="${cls}" data-idx="${j}"><span class="letter">${letters[j]||j+1}</span><span>${escapeHtml(opt)}</span></div>`;
+  });
+
+  html += `</div>`;
+  if(revealed[index] && q.explanation){
+    html += `<div class="explain">${escapeHtml(q.explanation)}</div>`;
+  }
+  html += `
+    <div class="practice-nav">
+      <button class="ghost" id="btn-prev" ${index===0?'disabled':''}>← Previous</button>
+      <div style="display:flex; gap:0.6rem;">
+        ${!revealed[index] ? `<button class="primary" id="btn-check" ${answers[index]===null?'disabled':''}>Check Answer</button>` : ''}
+        <button class="primary" id="btn-next">${index === quiz.questions.length-1 ? 'Finish' : 'Next →'}</button>
+      </div>
+    </div>
+  </div>`;
+
+  el.innerHTML = html;
+
+  document.getElementById('btn-exit-practice').addEventListener('click', exitPractice);
+  document.getElementById('btn-prev').addEventListener('click', ()=>{ practiceState.index--; renderPracticeQuestion(); });
+  document.getElementById('btn-next').addEventListener('click', ()=>{
+    if(index === quiz.questions.length-1){ showScoreScreen(); }
+    else { practiceState.index++; renderPracticeQuestion(); }
+  });
+  const checkBtn = document.getElementById('btn-check');
+  if(checkBtn) checkBtn.addEventListener('click', ()=>{ practiceState.revealed[index] = true; renderPracticeQuestion(); });
+
+  if(!revealed[index]){
+    document.querySelectorAll('.practice-opt').forEach(optEl=>{
+      optEl.addEventListener('click', ()=>{
+        practiceState.answers[index] = parseInt(optEl.dataset.idx);
+        renderPracticeQuestion();
+      });
+    });
+  }
+}
+
+function exitPractice(){
+  document.getElementById('practice-screen').classList.add('hidden');
+  document.getElementById('practice-screen').innerHTML = '';
+  document.getElementById('results').classList.remove('hidden');
+}
+
+function showScoreScreen(){
+  const { quiz, answers } = practiceState;
+  let correct = 0;
+  quiz.questions.forEach((q,i)=>{ if(answers[i] === q.correctIndex) correct++; });
+  const total = quiz.questions.length;
+  const pct = Math.round((correct/total)*100);
+  const letters = ['A','B','C','D','E','F'];
+
+  let html = `<div class="score-card">
+    <div class="score-big">${correct} / ${total}</div>
+    <div class="score-sub">${pct}% correct</div>
+  </div>
+  <div class="actions" style="margin-bottom:1.5rem;">
+    <button class="ghost" id="btn-retake">Retake Quiz</button>
+    <button class="ghost" id="btn-exit-to-key">Back to Answer Key</button>
+    <button class="ghost" id="btn-download-results-pdf">Download Results PDF</button>
+  </div>
+  <h3 style="margin-bottom:1rem;">Review</h3>`;
+
+  quiz.questions.forEach((q,i)=>{
+    const norm = normalizeQuestion(q);
+    const isCorrect = answers[i] === q.correctIndex;
+    const wasAnswered = answers[i] !== null;
+    html += `<div class="review-item ${isCorrect?'right':'wrong'}">
+      <div class="qnum">Question ${i+1} <span class="qtype-badge">${typeLabel(q.qtype)}</span> — ${isCorrect?'Correct':(wasAnswered?'Incorrect':'Skipped')}</div>
+      ${questionBodyHtml(norm)}`;
+    norm.options.forEach((opt,j)=>{
+      let cls = 'opt';
+      if(j===q.correctIndex) cls += ' correct';
+      html += `<div class="${cls}"><span class="letter">${letters[j]||j+1}</span><span>${escapeHtml(opt)}${wasAnswered && j===answers[i] && !isCorrect ? '  (your answer)' : ''}</span></div>`;
+    });
+    if(q.explanation) html += `<div class="explain">${escapeHtml(q.explanation)}</div>`;
+    html += `</div>`;
+  });
+
+  const el = document.getElementById('practice-screen');
+  el.innerHTML = html;
+  document.getElementById('btn-retake').addEventListener('click', startPractice);
+  document.getElementById('btn-exit-to-key').addEventListener('click', exitPractice);
+  document.getElementById('btn-download-results-pdf').addEventListener('click', ()=>downloadResultsPdf(correct,total));
+}
+
+function downloadResultsPdf(correct,total){
+  if(!practiceState) return;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'a4'});
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginX = 44;
+  const contentWidth = pageWidth - marginX*2;
+  const letters = ['A','B','C','D','E','F'];
+  const moss = [51,74,45], mossPale=[232,239,227], error=[163,61,47], errorPale=[247,226,222], ink=[43,38,32], inkSoft=[107,98,85], line=[221,212,194];
+
+  doc.setFillColor(...moss);
+  doc.rect(0,0,pageWidth,74,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(16);
+  doc.text((practiceState.quiz.title||'Quiz') + ' — Results', marginX, 32);
+  doc.setFontSize(11);
+  doc.text('Score: ' + correct + ' / ' + total + ' (' + Math.round(correct/total*100) + '%)', marginX, 52);
+  doc.setTextColor(...ink);
+  let y = 100;
+  let pageNum = 1;
+  function footer(){
+    doc.setDrawColor(...line); doc.line(marginX,pageHeight-36,pageWidth-marginX,pageHeight-36);
+    doc.setFontSize(8.5); doc.setTextColor(...inkSoft);
+    doc.text('Page '+pageNum, pageWidth-marginX, pageHeight-22, {align:'right'});
+    doc.setTextColor(...ink);
+  }
+  footer();
+  function ensureSpace(n){ if(y+n>pageHeight-50){ doc.addPage(); pageNum++; y=56; footer(); } }
+
+  practiceState.quiz.questions.forEach((q,i)=>{
+    const norm = normalizeQuestion(q);
+    const isCorrect = practiceState.answers[i] === q.correctIndex;
+    const qLines = doc.splitTextToSize((i+1)+'.  '+norm.questionText, contentWidth-16);
+    ensureSpace(qLines.length*13.5+6);
+    doc.setFont('helvetica','bold'); doc.setFontSize(11);
+    doc.text(qLines, marginX, y);
+    y += qLines.length*13.5+4;
+    doc.setFont('helvetica','normal'); doc.setFontSize(10);
+    norm.options.forEach((opt,j)=>{
+      const optLines = doc.splitTextToSize((letters[j]||j+1)+'.  '+opt, contentWidth-36);
+      ensureSpace(optLines.length*13+4);
+      const isRight = j===q.correctIndex;
+      const isUserWrong = j===practiceState.answers[i] && !isCorrect;
+      if(isRight){ doc.setFillColor(...mossPale); doc.roundedRect(marginX+14,y-9,contentWidth-28,optLines.length*13+4,3,3,'F'); doc.setFont('helvetica','bold'); doc.setTextColor(...moss); }
+      else if(isUserWrong){ doc.setFillColor(...errorPale); doc.roundedRect(marginX+14,y-9,contentWidth-28,optLines.length*13+4,3,3,'F'); doc.setTextColor(...error); }
+      doc.text(optLines, marginX+20, y);
+      doc.setFont('helvetica','normal'); doc.setTextColor(...ink);
+      y += optLines.length*13+3;
+    });
+    if(q.explanation){
+      const exLines = doc.splitTextToSize('Explanation: '+q.explanation, contentWidth-36);
+      ensureSpace(exLines.length*11.5+8);
+      doc.setFont('helvetica','italic'); doc.setFontSize(9); doc.setTextColor(...inkSoft);
+      doc.text(exLines, marginX+24, y+2);
+      doc.setFont('helvetica','normal'); doc.setTextColor(...ink);
+      y += exLines.length*11.5+10;
+    }
+    y += 8;
+    doc.setDrawColor(...line); doc.line(marginX,y-6,pageWidth-marginX,y-6);
+    y += 6;
+  });
+
+  doc.save((practiceState.quiz.title||'quiz').replace(/[^a-z0-9]+/gi,'_').toLowerCase()+'_results.pdf');
+}
+</script>
+</body>
+</html>
